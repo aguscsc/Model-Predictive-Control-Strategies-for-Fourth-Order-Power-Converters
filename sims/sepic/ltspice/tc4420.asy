@@ -1,0 +1,18 @@
+Version 4
+SymbolType BLOCK
+RECTANGLE Normal 48 16 -32 -16
+TEXT -28 36 Left 2 tc4420
+SYMATTR Prefix X
+SYMATTR Value TC4420_I2D_B
+PIN -16 -16 NONE 8
+PINATTR PinName Input
+PINATTR SpiceOrder 1
+PIN 0 -16 NONE 8
+PINATTR PinName Output
+PINATTR SpiceOrder 2
+PIN 16 -16 NONE 8
+PINATTR PinName +
+PINATTR SpiceOrder 3
+PIN 32 -16 NONE 8
+PINATTR PinName -
+PINATTR SpiceOrder 4
