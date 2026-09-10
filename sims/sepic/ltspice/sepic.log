@@ -1,11 +1,11 @@
 LTspice 24.1.7 for Windows
 Circuit: Z:\home\wepi\github\Model-Predictive-Control-Strategies-for-Fourth-Order-Power-Converters\sims\sepic\ltspice\sepic.net
-Start Time: Wed Sep  9 14:38:26 2026
+Start Time: Wed Sep  9 18:24:41 2026
 Z:\home\wepi\github\Model-Predictive-Control-Strategies-for-Fourth-Order-Power-Converters\sims\sepic\ltspice\TC4420_Rev2_SPICE_Model.mod(98): Note: The caret character means exponentiation in this context. If you wish to silence this warning, use the "**" operator instead or add ".OPTIONS NO_CARET_WARNING" to your netlist.
 G50 51 60 VALUE {V(50,0)*0.96/(-0.04+(18/V(3,4))^1.1)+1m}
                                                 ^
 solver = Normal
-Maximum thread count: 8
+Maximum thread count: 16
 tnom = 27
 temp = 27
 method = trap
@@ -39,8 +39,10 @@ Source Step = 3.0303%
 vernier = 0.25
 Source stepping failed
 
-Pseudo Transient succeeded in finding the operating point at 200.087 ms.
-Total elapsed time: 23.995 seconds.
+Pseudo Transient succeeded in finding the operating point at 346.543 ms.
+
+Simulation stopped by user.
+Total elapsed time: 7.763 seconds.
 
 Files loaded:
 Z:\home\wepi\github\Model-Predictive-Control-Strategies-for-Fourth-Order-Power-Converters\sims\sepic\ltspice\sepic.net
@@ -49,17 +51,3 @@ C:\users\wepi\AppData\Local\LTspice\lib\cmp\standard.mos
 Z:\home\wepi\github\Model-Predictive-Control-Strategies-for-Fourth-Order-Power-Converters\sims\sepic\ltspice\TC4420_Rev2_SPICE_Model.mod
 Z:\home\wepi\github\Model-Predictive-Control-Strategies-for-Fourth-Order-Power-Converters\sims\sepic\ltspice\ina240a1.lib
 
-il1_avg: AVG(I(L1))=0.91142206409 FROM 0.00999 TO 0.01
-il1_pp: PP(I(L1))=0.250990688801 FROM 0.00999 TO 0.01
-il1_ripple_pct: 100*IL1_pp/abs(IL1_avg)=27.5383599641
-il2_avg: AVG(I(L2))=0.50726262629 FROM 0.00999 TO 0.01
-il2_pp: PP(I(L2))=0.150373607874 FROM 0.00999 TO 0.01
-il2_ripple_pct: 100*IL2_pp/abs(IL2_avg)=29.6441330546
-vout_avg: AVG(V(vout))=20.2866422096 FROM 0.00999 TO 0.01
-vout_pp: PP(V(vout))=0.207620620728 FROM 0.00999 TO 0.01
-vout_ripple_pct: 100*Vout_pp/abs(Vout_avg)=1.02343511845
-vcs_avg: AVG(V(sw,csd))=11.984342802 FROM 0.00999 TO 0.01
-vcs_pp: PP(V(sw,csd))=0.572343826294 FROM 0.00999 TO 0.01
-vcs_ripple_pct: 100*Vcs_pp/abs(Vcs_avg)=4.77576314156
-vin: AVG(V(vin))=12 FROM 0.00999 TO 0.01
-eff: (Vout_avg*IL2_avg)/(Vin*IL1_avg)=0.940897363518
