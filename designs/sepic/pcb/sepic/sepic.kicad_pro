@@ -39,9 +39,9 @@
         "other_text_thickness": 0.15,
         "other_text_upright": false,
         "pads": {
-          "drill": 0.8,
-          "height": 1.27,
-          "width": 1.27
+          "drill": 3.2,
+          "height": 3.2,
+          "width": 3.2
         },
         "silk_line_width": 0.1,
         "silk_text_italic": false,
@@ -537,7 +537,7 @@
     "last_paths": {
       "idf": "",
       "netlist": "",
-      "plot": "",
+      "plot": "../../../../../../gerbers/",
       "specctra_dsn": "",
       "step": "",
       "vrml": ""
@@ -674,7 +674,7 @@
         "uuid": "90bfeea5-c5c2-4088-b876-270f7583e2b4"
       }
     ],
-    "used_designators": "C1,Q1,R1,L1,J1",
+    "used_designators": "H1-4,C1,Q1,R1,L1,J1",
     "variants": []
   },
   "sheets": [
