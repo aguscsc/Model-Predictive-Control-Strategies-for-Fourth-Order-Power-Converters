@@ -1,0 +1,313 @@
+%% Parameters (ideal SEPIC)
+clear;
+clc;
+P = 10;
+Vo = 20;
+Vin = 12;
+L1 = 300e-6;
+L2 = 500e-6;
+Cs = 5.2e-6;
+Co = 15.625e-6;
+Io = P/Vo;              % 0.5 A
+R = Vo/Io;               % 40 ohm
+d = (Vo/Vin)/(1 + (Vo/Vin));   % 0.625
+Vcs = Vin;                % 12 V 
+il1 = P/Vin;              % 0.8333 A  
+il2 = Io;                 % 0.5 A
+
+%% small signal model
+A_hat = [0        0       -(1-d)/L1  -(1-d)/L1;
+         0        0        d/L2      -(1-d)/L2;
+         (1-d)/Cs -d/Cs    0          0;
+         (1-d)/Co  (1-d)/Co 0        -1/(R*Co)];
+
+B_hat = [(Vcs+Vo)/L1   1/L1;
+         (Vcs+Vo)/L2   0;
+         -(il1+il2)/Cs 0;
+         -(il1+il2)/Co 0];
+
+C = [0 0 0 1];
+D = [0 0];
+
+sys = ss(A_hat, B_hat, C, D);
+
+%% Tustin discretization
+Ts = 10e-6;
+sysd = c2d(sys, Ts, 'tustin');
+[Ad, Bd, Cd, Dd] = ssdata(sysd);
+
+%% Poles and zeros of the control-to-output transfer function (d -> vo)
+G_vd  = sys(1,1);     % continuous: input 1 (d_hat) -> output (vo_hat)
+Gd_vd = sysd(1,1);    % discrete (Tustin) version
+
+p_c = pole(G_vd)      % continuous poles
+z_c = zero(G_vd)      % continuous zeros
+damp(G_vd)            % natural frequency (rad/s) and damping of each pole
+
+%%  Bode: continuous vs discrete
+figure;
+bode(G_vd, Gd_vd); grid on;
+legend('Continuous', 'Tustin, Ts = 10 us');
+
+%% pole-zero map in the z-plane
+figure;
+pzmap(Gd_vd); zgrid;
+% notes from this, 2 poles and 2 zeroes kinda critically stable but they
+% get cancelled, then 2 poles inside and 1 zero outside (non minimum phase)
+% and one zero at -1 due to a tustin artifact
+%% controllability and obs
+
+[V, E] = eig(A_hat);
+ev = diag(E)
+[~, i] = min(abs(real(ev)));   % index of the purely imaginary (undamped) pole
+v = V(:, i);                   % right eigenvector: the "shape" of the mode
+
+v_normalized = v / v(1)        % scale so i1 component = 1
+obs_test  = C * v              % ~0 means Vo can't see this mode
+
+W = inv(V);
+w = W(i, :);                   % left eigenvector of the same mode
+ctrb_test = w * B_hat(:,1)     % clearly nonzero means d can excite it
+
+
+%% Open-loop step response (small duty step)
+figure;
+step(0.01*G_vd, 5e-3); grid on;   % response of vo_hat to a 1% duty step, 5 ms window
+
+
+
+%% ripple analysis for rho definition
+
+
+rho_list = logspace(log10(0.3), log10(3), 300);
+N = numel(rho_list);
+zeta = zeros(2, N);  wn = zeros(2, N);  decay_sum = zeros(1, N);
+
+for k = 1:N
+    L2k = rho_list(k) * L1 * d/(1-d);      % from rho = L2*D'/(L1*D)
+    Ak = [0          0         -(1-d)/L1   -(1-d)/L1;
+          0          0          d/L2k      -(1-d)/L2k;
+          (1-d)/Cs  -d/Cs       0           0;
+          (1-d)/Co   (1-d)/Co   0          -1/(R*Co)];
+    ev = eig(Ak);
+    ev = ev(imag(ev) > 0);                         % one pole per complex pair
+    [~, idx] = sort(abs(ev));  ev = ev(idx);       % row 1 = lower-frequency mode
+    wn(:, k)     = abs(ev);
+    zeta(:, k)   = -real(ev) ./ abs(ev);
+    decay_sum(k) = -sum(real(ev));                 % should stay at 1/(2*R*Co)
+end
+
+
+Dp = 1 - d;
+h  = 1/(R*Co);
+kappa = Dp^4*(1 - rho_list).^2 ./ (rho_list.^2 * L1^2*Co*Cs);
+wi2   = Dp*(rho_list*Dp + d)   ./ (rho_list*L1*Cs);
+wo2   = Dp^2*(d*rho_list + Dp) ./ (d*rho_list*L1*Co);
+zeta_int_approx = h*kappa ./ (2*sqrt(wi2).*((wo2 - wi2).^2 + h^2*wi2));
+
+figure;
+loglog(rho_list, zeta(2,:), rho_list, zeta_int_approx, '--'); grid on;
+xlabel('\rho'); ylabel('\zeta_{int}');
+legend('exact (eig)', 'weak-coupling approximation');
+
+%% ripple constrains
+% How far does a realistic Vin excursion actually push rho away from 1?
+Vin_range = 10:0.1:14;                       % a plausible bench-supply excursion window around 12V
+D_needed  = Vo ./ (Vo + Vin_range);         % D required to hold Vo=20V at each Vin
+rho_actual = L2*(1-D_needed) ./ (L1*D_needed);
+
+figure;
+plot(Vin_range, rho_actual, 'o-'); grid on;
+xlabel('Vin (V)'); ylabel('\rho at required D_{ref}');
+yline(1, '--', '\rho = 1 (nominal)');
+
+%% MPC
+
+% select the control input for prediction
+
+Bu = Bd(:,1);          % duty-cycle column only; Vin (column 2) is a disturbance, not a decision variable
+nx = size(Ad,1);        % number of states = 4 for the ideal model
+% Horizon
+Np = 30;     % prediction horizon, in samples (30*10us = 300us)
+Nu = Np;     % control horizon = Np for now; Nu < Np comes later
+
+% Prediction matrices M and S
+M = zeros(Np*nx, nx);
+S = zeros(Np*nx, Nu);   % nu=1, so each column is one decision variable
+
+Apow = eye(nx);
+for i = 1:Np
+    Apow = Ad * Apow;                      % Ad^i, built incrementally
+    M((i-1)*nx+1 : i*nx, :) = Apow;        % stack Ad^1, Ad^2, ..., Ad^Np
+end
+
+for i = 1:Np
+    for j = 1:i                            % only j <= i contributes (causality)
+        S((i-1)*nx+1 : i*nx, j) = Ad^(i-j) * Bu;
+    end
+end
+
+% Weights (placeholder values — tune once the QP runs)
+Q  = diag([1 1 1 10]);   % penalize iL1, iL2, vCs, vo deviations; 
+Rw = 1;                   % penalize duty-cycle deviation
+
+Qbar = kron(eye(Np), Q);   % block-diagonal, Np copies of Q
+Rbar = kron(eye(Nu), Rw);  % block-diagonal, Nu copies of R
+
+% Dense QP matrices: min 0.5*U'*H*U + f'*U
+H = 2*(S'*Qbar*S + Rbar);
+H = (H + H')/2;              % force exact symmetry (removes floating-point asymmetry, quadprog is picky about this)
+
+% f depends on the current error state dx(k) -- this line runs online, every sample
+dx0 = [0; 0; 0; 1];          % EXAMPLE ONLY: pretend vo is 1V above setpoint, everything else at target
+f = 2*S'*Qbar'*M*dx0;
+
+% Duty-cycle box constraints (physical PWM limit, kept off 0/1 for dead-time margin)
+dmin = 0.05;  dmax = 0.95;
+lb = (dmin - d) * ones(Nu,1);   % 'd' here is your nominal duty cycle, computed earlier in the script
+ub = (dmax - d) * ones(Nu,1);
+
+% Solve the QP (this is what would run every sample on the DSP; quadprog is just for offline testing here)
+options = optimoptions('quadprog','Display','off');
+U_opt = quadprog(H, f, [], [], [], [], lb, ub, [], options);
+
+du0 = U_opt(1);        % receding horizon: only the FIRST move gets applied
+d_apply = d + du0;     % undo the deviation-coordinate shift before writing to CMPA
+
+
+%% Step 0 - Discretization for MPC (ZOH keeps the states physical)
+sys_x  = ss(A_hat, B_hat, eye(4), zeros(4,2));   % output = the full state
+sysd_z = c2d(sys_x, Ts, 'zoh');
+sysd_t = c2d(sys_x, Ts, 'tustin');
+
+disp('ZOH:    C and D');    disp(sysd_z.C); disp(sysd_z.D)   % expect eye(4) and zeros(4,2)
+disp('Tustin: C and D');    disp(sysd_t.C); disp(sysd_t.D)   % expect something different
+
+[Ad, Bd] = ssdata(sysd_z);   % from here on, Ad and Bd are the ZOH versions
+
+%% Step 1 - Split the input matrix
+Bu = Bd(:,1);      % duty cycle: the decision variable
+Bv = Bd(:,2);      % Vin: disturbance (used by the plant simulation, not by the QP yet)
+nx = size(Ad,1);   % 4 states
+% Step 2 - Horizon (first-pass values)
+Np = 30;    % 30 x 10 us = 300 us look-ahead
+Nu = Np;    % every future move is free for now
+
+%% Step 3 - Prediction matrices:  X = M*dx(k) + S*U
+Apow = cell(Np+1, 1);
+Apow{1} = eye(nx);                    % Apow{n+1} = Ad^n
+for n = 1:Np
+    Apow{n+1} = Ad * Apow{n};
+end
+
+M = zeros(Np*nx, nx);
+S = zeros(Np*nx, Nu);
+for i = 1:Np
+    rows = (i-1)*nx+1 : i*nx;         % row block for dx(k+i|k)
+    M(rows, :) = Apow{i+1};           % free response: Ad^i
+    for j = 1:i                       % causality: only moves already applied
+        S(rows, j) = Apow{i-j+1} * Bu;    % move j, aged (i-j) steps: Ad^(i-j)*Bu
+    end
+end
+
+%% Step 4a - Q: Bryson's rule (first-pass tolerances, to be tuned)
+diL1_max = 0.15*il1;    % 83 mA  (15% of nominal)
+diL2_max = 0.15*il2;    % 50 mA
+dvCs_max = 0.5;         % 0.5 V
+dvo_max  = 0.5;         % 0.2 V  (1% of 20 V)
+
+Q_bryson = diag(1 ./ [diL1_max, diL2_max, dvCs_max, dvo_max].^2);
+
+%% Step 4b - Internal-mode term: penalize (diL1 - diL2)^2
+c_mode      = [1 -1 0 0];     % extracts diL1 - diL2
+dmode_max   = 0.05;           % 50 mA tolerance on the imbalance
+w_mode      = 1;              % 1 = on, 0 = off (for comparisons)
+Q_mode      = w_mode * (c_mode' * c_mode) / dmode_max^2;
+
+Q = Q_bryson + Q_mode;
+
+%% Step 4c - R: same idea, tolerance on duty-cycle deviation
+dd_max = 0.05;                % 5% duty-cycle deviation
+Rw     = 1 / dd_max^2;
+%% Step 5 - QP matrices (offline)
+Qbar = kron(eye(Np), Q);
+Rbar = kron(eye(Nu), Rw);
+
+H = 2*(S'*Qbar*S + Rbar);
+H = (H + H')/2;
+Fgain = 2*S'*Qbar*M;          % online: f = Fgain*dx0
+
+[~, p] = chol(H);
+fprintf('H positive definite: %d | cond(H) = %.2e\n', p==0, cond(H));
+
+%% Step 6a - Simulation settings
+Tsim = 5e-3;                    % 5 ms
+N    = round(Tsim/Ts);
+t    = (0:N-1)*Ts;
+
+Vo_ref = 20;   Po_ref = 10;
+D_nom  = d;    Vin_nom = Vin;
+x_nom  = [il1; il2; Vcs; Vo];   % the linearization point of the plant model
+
+vin_profile = Vin_nom*ones(1,N);
+vin_profile(t >= 2e-3) = 12.5;  % Vin step 12 -> 12.5 V at t = 2 ms
+
+use_mpc = true;                 % false = open loop (d held at D_nom), for comparison
+dmin = 0.05;  dmax = 0.95;
+alpha = 0.01;                   % Vin low-pass filter coefficient
+options = optimoptions('quadprog', 'Display', 'off');
+
+%% Step 6b - Initial condition and logs
+xdev     = [0.1; -0.1; 0; 0];   % kick along the internal-mode shape (diL1 = -diL2)
+vin_filt = Vin_nom;
+
+x_log    = zeros(4, N);
+xref_log = zeros(4, N);
+d_log    = zeros(1, N);
+
+%% Step 6c - Control loop (one iteration = one DSP interrupt)
+for k = 1:N
+    % --- measure ---
+    x_meas   = x_nom + xdev;                  % physical state seen by the ADCs
+    vin_meas = vin_profile(k);
+
+    % --- adaptive reference (Path A) ---
+    vin_filt = alpha*vin_meas + (1-alpha)*vin_filt;
+    D_ref_k  = Vo_ref / (Vo_ref + vin_filt);
+    x_ref_k  = [Po_ref/vin_filt; Po_ref/Vo_ref; vin_filt; Vo_ref];
+
+    % --- controller ---
+    if use_mpc
+        dx0 = x_meas - x_ref_k;
+        f   = Fgain * dx0;
+        lb  = (dmin - D_ref_k) * ones(Nu,1);
+        ub  = (dmax - D_ref_k) * ones(Nu,1);
+        [U_opt, ~, exitflag] = quadprog(H, f, [], [], [], [], lb, ub, [], options);
+        if exitflag <= 0
+            warning('QP failed at k = %d', k);
+        end
+        d_k = D_ref_k + U_opt(1);             % receding horizon: first move only
+    else
+        d_k = D_nom;
+    end
+
+    % --- log ---
+    x_log(:,k)    = x_meas;
+    xref_log(:,k) = x_ref_k;
+    d_log(k)      = d_k;
+
+    % --- plant: advance one sample (linear model, deviation coordinates) ---
+    xdev = Ad*xdev + Bd*[d_k - D_nom; vin_meas - Vin_nom];
+end
+
+%% Step 6d - Plots
+names = {'i_{L1} (A)', 'i_{L2} (A)', 'v_{Cs} (V)', 'v_o (V)'};
+figure;
+for n = 1:4
+    subplot(5,1,n);
+    plot(t*1e3, x_log(n,:), t*1e3, xref_log(n,:), '--'); grid on;
+    ylabel(names{n});
+end
+subplot(5,1,5);
+plot(t*1e3, d_log); grid on;
+ylabel('d'); xlabel('t (ms)');
