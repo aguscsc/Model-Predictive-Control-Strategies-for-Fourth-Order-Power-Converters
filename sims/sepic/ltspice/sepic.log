@@ -1,6 +1,6 @@
 LTspice 24.1.7 for Windows
 Circuit: Z:\home\wepi\github\Model-Predictive-Control-Strategies-for-Fourth-Order-Power-Converters\sims\sepic\ltspice\sepic.net
-Start Time: Wed Sep 30 09:22:36 2026
+Start Time: Fri Oct  9 18:18:31 2026
 Z:\home\wepi\github\Model-Predictive-Control-Strategies-for-Fourth-Order-Power-Converters\sims\sepic\ltspice\TC4420_Rev2_SPICE_Model.mod(98): Note: The caret character means exponentiation in this context. If you wish to silence this warning, use the "**" operator instead or add ".OPTIONS NO_CARET_WARNING" to your netlist.
 G50 51 60 VALUE {V(50,0)*0.96/(-0.04+(18/V(3,4))^1.1)+1m}
                                                 ^
@@ -38,7 +38,7 @@ vernier = 0.25
 Source stepping failed
 
 Pseudo Transient succeeded in finding the operating point at 290.718 ms.
-Total elapsed time: 28.162 seconds.
+Total elapsed time: 23.947 seconds.
 
 Files loaded:
 Z:\home\wepi\github\Model-Predictive-Control-Strategies-for-Fourth-Order-Power-Converters\sims\sepic\ltspice\sepic.net
